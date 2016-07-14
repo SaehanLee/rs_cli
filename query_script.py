@@ -1,5 +1,8 @@
 from datetime import date, datetime
+import os
+import re
 import csv
+import pandas as pd
 
 def get_column_datatype(cell):
     """
@@ -67,23 +70,38 @@ def get_column_datatype(cell):
         return 'bool'
     else:
         return 'varchar(256)'
+        
+def read_csv(csv_path):
+    try:
+        fp = open(csv_path, 'r')
+    except IOError as e:
+        print('IOError Found')
+        # Not a permission error.
+        raise
+    else:
+        with fp:
+            reader = csv.reader(fp)
+            return list(reader)
 
 #INPUT : SOME CSV FILE
 #OUTPUT: SQL QUERY TO CREATE THE TABLE ITSELF IN REDSHIFT
         # AND SQL QUERY TO POPULATE TABLE
     
-def get_query_from_csv(some_csv):
-    with open(some_csv, 'r') as f:
-        reader = csv.reader(f)
-        csv_rows_list = list(reader)
-        
+def get_query_from_csv(csv_path, table_name):
+    
+    csv_rows_list = read_csv(csv_path)
+    #with open(some_csv, 'r') as f:
+    #    reader = csv.reader(f)
+    #    csv_rows_list = list(reader)
+    
     headers = csv_rows_list[0] #your headers for each of the columns
     columns_datatypes_list = [get_column_datatype(column_cell) for column_cell in csv_rows_list[1]]  
     
     column_headers_and_types = \
         ', '.join([headers[i] + " " + columns_datatypes_list[i] for i in range(0, len(headers))])
-    
-    table_name, csv_ext = some_csv.split('.')
+        
+    searchExp = re.search(r'(?:\/)(\w+)(?:\.csv$)', csv_path)    
+    # table_name = searchExp.group(1)
     final_query = "CREATE TABLE IF NOT EXISTS " + table_name + " (" + \
         column_headers_and_types + ")"
     
@@ -91,6 +109,9 @@ def get_query_from_csv(some_csv):
     for char in final_query:
         final_query = final_query.replace("'", "")
     
-    print(csv_rows_list)
+    #print(csv_rows_list)
     
     return final_query
+
+def get_df_from_csv(csv_path):
+    return pd.read_csv(csv_path)

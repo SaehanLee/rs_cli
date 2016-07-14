@@ -21,7 +21,7 @@ REDSHIFT_COPY_CSV = """COPY {tablename}
     credentials 'aws_access_key_id={access_key_id};aws_secret_access_key={secret_access_key}'
     CSV
     IGNOREHEADER AS 1
-    dateformat AS 'YYYY-MM-DD';"""
+    dateformat AS 'auto';"""
 
 def create_pd_dataframe(config, query, dates_cols=None):
   """ Executes a sql query and read the data into a pandas data frame.
@@ -44,14 +44,12 @@ def upload_dataframe_to_s3(aws_config, df, filename, remote_filename_prefix=None
   :param remote_filename_prefix - if trying to load multiple csv's into a single table, add a
       prefix to the remote filename in order to later do use a Redshift COPY statement.
   """
-  LOG.info('bulk loading dataframe to redshift')
 
   if remote_filename_prefix is not None:
     filename = remote_filename_prefix + '_' + filename
 
-  temp_file = tempfile.NamedTemporaryFile(mode='w', encoding='utf-8')
-  LOG.debug('Saving a dataframe to csv: %s', temp_file.name)
-  df.to_csv(temp_file, index=False, columns=columns)
+  temp_file = tempfile.NamedTemporaryFile(mode='w')
+  df.to_csv(temp_file.name, index=False, columns=columns)
   access_key_id = aws_config['aws_access_key_id']
   secret_access_key = aws_config['aws_secret_access_key']
 
@@ -61,11 +59,6 @@ def upload_dataframe_to_s3(aws_config, df, filename, remote_filename_prefix=None
       aws_secret_access_key=secret_access_key,
   )
 
-  LOG.debug(
-      'Uploading csv: %s to bucket: %s',
-      temp_file.name,
-      aws_config['s3_bucket']
-  )
 
   s3_client.upload_file(temp_file.name, aws_config['s3_bucket'], filename)
   temp_file.close()
@@ -88,8 +81,6 @@ def copy_from_s3_to_redshift(db_config, aws_config, tablename, filename, create_
       secret_access_key=aws_config['aws_secret_access_key'],
   )
   if no_recreate is None:
-    LOG.debug('create statement: %s', create_tbl_stmt)
-    LOG.debug('rebuilding table --> [{0}]'.format(tablename))
     cur.execute(create_tbl_stmt)
     conn.commit()
   cur.execute(copy_statement)
@@ -128,7 +119,6 @@ def remove_file_from_s3(aws_config, filename):
                                            aws_region, s3_bucket
       filename - the key name needed to identify the to be removed file in the bucket
   """
-  LOG.debug('Removing {0} from {1} bucket'.format(filename, aws_config['s3_bucket']))
   access_key_id = aws_config['aws_access_key_id']
   secret_access_key = aws_config['aws_secret_access_key']
   s3_client = boto3.client(
@@ -136,7 +126,7 @@ def remove_file_from_s3(aws_config, filename):
       aws_access_key_id=access_key_id,
       aws_secret_access_key=secret_access_key,
   )
-  resp = s3_client.delete_object(
+  s3_client.delete_object(
     Bucket=aws_config['s3_bucket'],
     Key=filename
   )
