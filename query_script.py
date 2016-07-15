@@ -87,7 +87,7 @@ def read_csv(csv_path):
 #OUTPUT: SQL QUERY TO CREATE THE TABLE ITSELF IN REDSHIFT
         # AND SQL QUERY TO POPULATE TABLE
     
-def get_query_from_csv(csv_path, table_name):
+def get_query_from_csv(csv_path, table_name, schema):
     
     csv_rows_list = read_csv(csv_path)
     #with open(some_csv, 'r') as f:
@@ -102,7 +102,7 @@ def get_query_from_csv(csv_path, table_name):
         
     searchExp = re.search(r'(?:\/)(\w+)(?:\.csv$)', csv_path)    
     # table_name = searchExp.group(1)
-    final_query = "CREATE TABLE IF NOT EXISTS " + table_name + " (" + \
+    final_query = "CREATE TABLE IF NOT EXISTS " + schema + "." + table_name + " (" + \
         column_headers_and_types + ")"
     
     #removes quotation marks around header names for the query

@@ -11,11 +11,14 @@ import sys
 import query_script
 import redshift as db
 import pandas as pd
-import script as cliTools
 
+def find(name, path):
+    for root, dirs, files in os.walk(path):
+        if name in files:
+            return os.path.join(root, name)
 
 # loads dotenv
-dotenv_path = join(dirname(__file__), '.env')
+dotenv_path = find('.env', '/Users/')
 if os.path.exists(dotenv_path) == False:
   print('Cannot locate .env file using path --> {}'.format(dotenv_path), file=sys.stderr)
   sys.exit(1)
@@ -45,11 +48,11 @@ def verify_db_config(db_config):
 #access AWS credentials by reading from .env file
 parser = argparse.ArgumentParser(description='Pass data from CSV to Redshift')
 parser.add_argument('action', type=str, help=HELP_STRING)
-parser.add_argument('--db_user', type=str, default=os.environ.get('DATABASE_USR'),
+parser.add_argument('--db_user', type=str, default=os.environ.get('CALC_DATABASE_USR'),
                     help='database user')
 parser.add_argument('--input', type=str, required=True, help='csv file to upload to redshift')
 parser.add_argument('--table_name', type=str, required=True, help='destination table name')
-parser.add_argument('--db_pwd', type=str, default=os.environ.get('DATABASE_PWD'),
+parser.add_argument('--db_pwd', type=str, default=os.environ.get('CALC_DATABASE_PWD'),
                     help='database password')
 parser.add_argument('--db_host', type=str, default=os.environ.get('DATABASE_HOST'),
                     help='database host')
@@ -67,7 +70,7 @@ parser.add_argument('--secret', type=str, default=os.environ.get('AWS_SECRET_ACC
                     help='aws secret access key')
 parser.add_argument('--dry_run', action='store_true', default=False,
                     help='execute calculation without writing to production DB (default -> False)')
-parser.add_argument('--s3bucket', type=str, default=os.environ.get('S3_BUCKET'),
+parser.add_argument('--s3bucket', type=str, default=os.environ.get('CALC_BUCKET'),
                     help='Name of the s3 bucket to use for this environment.')
 parser.add_argument('--awsRegion', type=str, default=os.environ.get('AWS_DEFAULT_REGION'),
                     help='aws region to run calculation in. Default ["us-east-1"]')
@@ -75,11 +78,14 @@ parser.add_argument('--slack_web_hook', type=str, default=os.environ.get('SLACK_
                     help='the Slack url to send log message to')
 parser.add_argument('--enable_slack', action='store_true', default=False,
                     help='enable slack notification (default --> False)')
-parser.add_argument('--schema', type=str, default=os.environ.get('DATABASE_SCHEMA'),
+parser.add_argument('--schema', type=str, default=os.environ.get('CAL_SCHEMA'),
                     help='the schema where tables should upload to')
+parser.add_argument('--load_other_env', type=str, default=dotenv_path,
+                    help='load stuff from a file that is not your .env file.')
 
 args = parser.parse_args()
 
+#load_dotenv(args.load_other_env)
 
 db_config = {
     'dbname': args.db_name,
@@ -101,13 +107,13 @@ verify_db_config(db_config)
 if args.action == 'csv':
   verify_aws_config(aws_config, 'csv')
   filePath = os.path.abspath(args.input)
-  createQuery = query_script.get_query_from_csv(filePath, args.table_name)
+  createQuery = query_script.get_query_from_csv(filePath, args.table_name, args.schema)
   df = query_script.get_df_from_csv(filePath)
   print(df)
   # df = cliTools.load_csv_to_df(filePath)
   # cliTools.get_create_table(df)
-  db.upload_dataframe_to_s3(aws_config, df, args.table_name)
-  db.copy_from_s3_to_redshift(db_config, aws_config, args.table_name, args.table_name, createQuery)
+  db.upload_dataframe_to_s3(aws_config, df, args.schema + "." + args.table_name)
+  db.copy_from_s3_to_redshift(db_config, aws_config, args.schema + "." + args.table_name, args.schema + "." + args.table_name, createQuery)
 
 
 else:
